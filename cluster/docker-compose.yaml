@@ -1,0 +1,49 @@
+name: "nginx-cluster"
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    image: nginx:custom
+    container_name: nginx
+    hostname: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - target: /etc/nginx/nginx.conf
+        source: ./nginx/config/nginx.conf
+        type: bind
+    networks:
+      - nginx-network
+  dns:
+    build:
+      context: ./dns
+      dockerfile: Dockerfile
+    image: dns:custom
+    container_name: dns
+    hostname: dns
+    ports:
+      - "30053:53"
+      - "30053:53/udp"
+    restart: always
+    environment:
+      TZ: "UTC"
+    networks:
+      - nginx-network
+    volumes:
+      - target: /etc/bind/named.conf.default-zones
+        source: ./dns/bind/named.conf.default-zones
+        type: bind
+      - target: /var/cache/bind/zone/main.com
+        source: ./dns/zone/main.com
+        type: bind
+      - target: /etc/bind/named.conf
+        source: ./dns/named.conf
+        type: bind
+
+networks:
+  nginx-network:
+    driver: bridge
