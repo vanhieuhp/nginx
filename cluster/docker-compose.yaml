@@ -1,5 +1,29 @@
 name: "nginx-cluster"
 services:
+  django:
+    build:
+      context: ./django
+      dockerfile: Dockerfile
+    command: gunicorn demo.wsgi:application --bind 0.0.0.0:8000
+    image: django:custom
+    container_name: django
+    hostname: django
+    expose:
+      - "8000"
+    volumes:
+      - ./django/:/usr/src/app/
+      - django_static_staticfiles:/usr/src/app/staticfiles
+      - target: /etc/resolv.conf
+        source: ./resolv.conf
+        type: bind
+    networks:
+      nginx_network:
+        ipv4_address: 172.20.0.12
+    restart: always
+    env_file:
+      - ./.env/dev.env
+
+
   nginx:
     build:
       context: ./nginx
@@ -13,11 +37,17 @@ services:
     volumes:
       - ./nginx/html:/usr/share/nginx/html
       - ./nginx/conf.d:/etc/nginx/conf.d
-      - target: /etc/nginx/nginx.conf
-        source: ./nginx/config/nginx.conf
-        type: bind
+#      - target: /etc/nginx/nginx.conf
+#        source: ./nginx/config/nginx.conf
+#        type: bind
+#      - target: /etc/resolv.conf
+#        source: ./resolv.conf
+#        type: bind
+      - django_static_staticfiles:/home/django/staticfiles
     networks:
-      - nginx-network
+      nginx_network:
+        ipv4_address: 172.20.0.11
+
   dns:
     build:
       context: ./dns
@@ -32,18 +62,35 @@ services:
     environment:
       TZ: "UTC"
     networks:
-      - nginx-network
+      nginx_network:
+        ipv4_address: 172.20.0.10
+
     volumes:
-      - target: /etc/bind/named.conf.default-zones
-        source: ./dns/bind/named.conf.default-zones
-        type: bind
-      - target: /var/cache/bind/zone/main.com
-        source: ./dns/zone/main.com
-        type: bind
+      - ./dns/zone/:/var/cache/bind/zone
       - target: /etc/bind/named.conf
-        source: ./dns/named.conf
+        source: ./dns/bind/named.conf
         type: bind
+      - target: /etc/bind/named.conf.custom
+        source: ./dns/bind/named.conf.custom
+        type: bind
+#      - target: /etc/resolv.conf
+#        source: ./resolv.conf
+#        type: bind
 
 networks:
   nginx-network:
     driver: bridge
+  nginx_network:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  django_static_staticfiles:
+    name: django_static_staticfiles
+#  django1:
+#    name: django1
+#  django2:
+#    name: django2
+
